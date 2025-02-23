@@ -1,0 +1,61 @@
+try
+{
+    string subject;
+    string body;
+    var emailSettings = await _emailSettingsService.GetEmailSettings();
+    if (dto.IsTest)
+    {
+        subject = dto.Subject;
+        body = dto.Body;
+    }
+    else
+    {
+        var emailtemplate = await _dbContext.EmailTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.Id == dto.EmailTemplateId);
+        if (emailtemplate == null)
+        {
+            emailtemplate = await _dbContext.EmailTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.EmailType == EmailType.Defualt);
+
+        }
+        subject = emailtemplate.Subject;
+        body = emailtemplate.Body;
+    }
+    MailMessage message = new MailMessage
+    {
+        From = new MailAddress(emailSettings.Data.FromEmail),
+        Subject = subject,
+        Body = body,
+        IsBodyHtml = true,
+        To = { dto.ToEmail }
+    };
+    SmtpClient client = new SmtpClient
+    {
+        Host = emailSettings.Data.Host,
+        Port = emailSettings.Data.Port,
+        UseDefaultCredentials = emailSettings.Data.UseDefaultCredentials,
+        DeliveryMethod = SmtpDeliveryMethod.Network,
+        Credentials = new NetworkCredential(emailSettings.Data.FromEmail, emailSettings.Data.Password),
+        Timeout = emailSettings.Data.Timeout,
+        EnableSsl = emailSettings.Data.EnableSsl
+    };
+    var email = new Email
+    {
+        Body = dto.Body,
+        Subject = dto.Subject,
+        ToEmail = dto.ToEmail,
+        EmailType = Enum.Parse<EmailType>(dto.EmailType.ToString()),
+        EmailTypeString = dto.EmailTypeString,
+        IsSent = true,
+        UserId = dto.UserId,
+        IsDeleted = false,
+        CreatedDate = DateTime.Now,
+        UpdateDate = DateTime.Now
+    };
+    await _dbContext.Emails.AddAsync(email);
+    await _dbContext.SaveChangesAsync();
+    client.Send(message);
+    return Success(dto);
+}
+catch (Exception ex)
+{
+    return Error<EmailDTO>(ex);
+}
